@@ -1,1 +1,3 @@
-g.py g1.py .venv .venv/
+.venv/
+g.py
+g1.py
