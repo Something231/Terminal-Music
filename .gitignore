@@ -1,3 +1,5 @@
 .venv/
 g.py
 g1.py
+g3.py
+debug.log
