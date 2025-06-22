@@ -14,15 +14,23 @@ ydl_opts = {
     'force_generic_extractor': False,
     }
 
-def yt_search(quary):
+def search(quary, platform: int):
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(f"ytsearch5:{quary}", download=False)
+        logging.critical(platform)
+        match platform:
+            case 0:
+                info = ydl.extract_info(f"ytsearch5:{quary}", download=False)
+            case 1:
+                info = ydl.extract_info(f"scsearch5:{quary}", download=False)
+            case _:
+                logging.critical('idiot')
     result = {}
+    
     for video in info.get("entries"):
-        result.update({str(video.get("title")): f"https://www.youtube.com/watch?v={str(video['id'])}"})
+        result.update({str(video.get("title")): str(video['url'])})
     return result
 
-def stream_youtube(url): 
+def stream_audio(url): 
     #function partially by ai, at least for now
     global player
 
@@ -69,7 +77,7 @@ def main(stdscr: curses.window):
                 inputbox = inputbox[:-1]
             elif key in (10, 13, curses.KEY_ENTER):
                 logging.debug(inputbox)
-                choices = yt_search(inputbox)
+                choices = search(inputbox, 0)
             elif 32 <= key <= 126:
                 char = chr(key)
                 inputbox = inputbox + str(char)
@@ -81,7 +89,7 @@ def main(stdscr: curses.window):
                 if player != None and player.poll() is None:
                     player.terminate()
                 logging.debug(list(choices.values())[selectedrow-1])
-                stream_youtube(list(choices.values())[selectedrow-1])
+                stream_audio(list(choices.values())[selectedrow-1])
         
         stdscr.addstr(1, 0, inputbox)
         stdscr.refresh()
