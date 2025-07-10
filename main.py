@@ -1,8 +1,10 @@
 import curses
-import yt_dlp
+from curses.textpad import rectangle
+import curses.textpad
 import subprocess
 import logging
 import time
+import yt_dlp
 
 logging.basicConfig(filename="debug.log", level=logging.DEBUG)
 player = None
@@ -13,6 +15,7 @@ ydl_opts = {
     'extract_flat': True,
     'force_generic_extractor': False,
     }
+current_song = ""
 
 def search(quary, platform: int):
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -36,6 +39,8 @@ def stream_audio(url):
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
+        global current_song
+        current_song = info.get("title")
 
     player = subprocess.Popen(
         ['ffplay', '-nodisp', '-autoexit', '-loglevel', 'quiet', info['url']],
@@ -45,53 +50,83 @@ def stream_audio(url):
 
 def main(stdscr: curses.window):
     curses.start_color()
-    curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)
-    curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_RED)
+    curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK)
+    curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_CYAN)
+    curses.init_pair(3, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
+    stdscr.bkgd(" ", curses.color_pair(1))
 
     stdscr.nodelay(True)
     stdscr.keypad(True)
+    curses.curs_set(0)
 
-    inputbox = ""
-    selectedrow = 0
+    rows, columns = stdscr.getmaxyx()
+    rows -=1
+    columns -= 1 
+    logging.debug(f"rows: {rows}")
+    logging.debug(f"Columns: {columns}")
+    if rows < 13: #arbitary number: fix later when known
+        stdscr.addstr(0, 0, "Terminal is too small!")
+        stdscr.refresh()
+        stdscr.nodelay(False)
+        stdscr.getch()
+        exit()
+    
+    spaces = int((rows-5)/7)
+    logging.critical(spaces)
+
+    typing_win = curses.newwin(spaces, columns-1, 1, 1)
+    content_win = curses.newwin(spaces*6, columns-1, int(spaces*2)+3, 1)
+    input_box = ""
+    selected_row = 0
     choices = {}
+    content_size = spaces * 4
 
     while True:
-        stdscr.clear()
-        stdscr.addstr(0, 0, "Type and press enter to search below:", curses.A_BOLD)
-
-        for i, row in enumerate(choices.keys()):
-            if i+1 == selectedrow:
-                stdscr.addstr(i+2, 0, row, curses.color_pair(2))
-            else:
-                stdscr.addstr(i+2, 0, row, curses.color_pair(1))
+        rectangle(stdscr, 0, 0, int(spaces)+1, columns)
+        rectangle(stdscr, int(spaces)+1, 0, int(spaces*2)+2, int((columns)/4))
+        rectangle(stdscr, int(spaces)+1, 0, int(spaces*2)+2, int((columns)/4*2))
+        rectangle(stdscr, int(spaces)+1, 0, int(spaces*2)+2, int((columns)/4*3))
+        rectangle(stdscr, int(spaces)+1, 0, int(spaces*2)+2, columns)
+        rectangle(stdscr, int(spaces*2)+2, 0 , int(spaces*6)+3, columns)
+        rectangle(stdscr, int(spaces*6)+3, 0, int(spaces*7)+4, columns)
 
         key = stdscr.getch()
-        if key == curses.KEY_UP and selectedrow != 0:
-            selectedrow -= 1
-        elif key == curses.KEY_DOWN and selectedrow != len(choices):
-            selectedrow += 1
 
-        if selectedrow == 0:
+        if key == curses.KEY_UP and selected_row != 0:
+            selected_row -= 1
+        elif key == curses.KEY_DOWN and selected_row != len(choices):
+            selected_row += 1
+
+        if selected_row == 0:
             curses.curs_set(1)
             if key == curses.KEY_BACKSPACE:
-                inputbox = inputbox[:-1]
+                input_box = input_box[:-1]
             elif key in (10, 13, curses.KEY_ENTER):
-                logging.debug(inputbox)
-                choices = search(inputbox, 0)
+                logging.debug(input_box)
+                choices = search(input_box, 0)
             elif 32 <= key <= 126:
                 char = chr(key)
-                inputbox = inputbox + str(char)
-            stdscr.move(1, len(inputbox)+1)
-
+                input_box = input_box + str(char)
+            stdscr.move(1, len(input_box)+1)
         else:
             curses.curs_set(0)
             if key == 10 or key == 13:
                 if player != None and player.poll() is None:
                     player.terminate()
-                logging.debug(list(choices.values())[selectedrow-1])
-                stream_audio(list(choices.values())[selectedrow-1])
-        
-        stdscr.addstr(1, 0, inputbox)
+                logging.debug(list(choices.values())[selected_row-1])
+                stream_audio(list(choices.values())[selected_row-1])
+
+        for i, row in enumerate(list(choices.keys())[:content_size]):
+            if i+1 == selected_row:
+                content_win.addstr(i, 0, row, curses.color_pair(2))
+            else:
+                content_win.addstr(i, 0, row, curses.color_pair(1))
+
+        stdscr.addstr(int(spaces*6)+4, 1, f"Now Playing: {current_song}", curses.color_pair(3))
+
+        typing_win.addstr(0, 0, input_box)
+        typing_win.refresh()
+        content_win.refresh()
         stdscr.refresh()
         time.sleep(0.03)
 
