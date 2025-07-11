@@ -53,6 +53,7 @@ def main(stdscr: curses.window):
     curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK)
     curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_CYAN)
     curses.init_pair(3, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
+    curses.init_pair(4, curses.COLOR_BLACK, curses.COLOR_GREEN)
     stdscr.bkgd(" ", curses.color_pair(1))
 
     stdscr.nodelay(True)
@@ -80,6 +81,8 @@ def main(stdscr: curses.window):
     selected_row = 0
     choices = {}
     content_size = spaces * 4
+    mode = 1
+    cursor_position = (1, 1)
 
     while True:
         rectangle(stdscr, 0, 0, int(spaces)+1, columns)
@@ -94,7 +97,7 @@ def main(stdscr: curses.window):
 
         if key == curses.KEY_UP and selected_row != 0:
             selected_row -= 1
-        elif key == curses.KEY_DOWN and selected_row != len(choices):
+        elif key == curses.KEY_DOWN and selected_row != len(choices)+1:
             selected_row += 1
 
         if selected_row == 0:
@@ -107,24 +110,46 @@ def main(stdscr: curses.window):
             elif 32 <= key <= 126:
                 char = chr(key)
                 input_box = input_box + str(char)
-            stdscr.move(1, len(input_box)+1)
+            cursor_position = (1, len(input_box)+1)
+        elif selected_row == 1:
+            curses.curs_set(0)
+            if key == curses.KEY_LEFT and mode != 1:
+                mode -= 1
+            if key == curses.KEY_RIGHT and mode != 4:
+                mode += 1
         else:
             curses.curs_set(0)
             if key == 10 or key == 13:
                 if player != None and player.poll() is None:
                     player.terminate()
-                logging.debug(list(choices.values())[selected_row-1])
-                stream_audio(list(choices.values())[selected_row-1])
+                logging.debug(list(choices.values())[selected_row-2])
+                stream_audio(list(choices.values())[selected_row-2])
 
         for i, row in enumerate(list(choices.keys())[:content_size]):
-            if i+1 == selected_row:
+            if i+2 == selected_row:
                 content_win.addstr(i, 0, row, curses.color_pair(2))
             else:
                 content_win.addstr(i, 0, row, curses.color_pair(1))
 
         stdscr.addstr(int(spaces*6)+4, 1, f"Now Playing: {current_song}", curses.color_pair(3))
+        stdscr.addstr(int(spaces)+2, 1, "SEARCH", curses.color_pair(1))
+        stdscr.addstr(int(spaces)+2, int((columns)/4)+1, "ADDED SONGS", curses.color_pair(1))
+        stdscr.addstr(int(spaces)+2, int((columns)/4*2)+1, "PLAYLISTS", curses.color_pair(1))
+        stdscr.addstr(int(spaces)+2, int((columns)/4*3)+1, "TBC", curses.color_pair(1))
+
+        match mode:
+            case 1:
+                stdscr.addstr(int(spaces)+2, 1, "SEARCH", curses.color_pair(4))
+            case 2:
+                stdscr.addstr(int(spaces)+2, int((columns)/4)+1, "ADDED SONGS", curses.color_pair(4))
+            case 3:
+                stdscr.addstr(int(spaces)+2, int((columns)/4*2)+1, "PLAYLISTS", curses.color_pair(4))
+            case 4:
+                stdscr.addstr(int(spaces)+2, int((columns)/4*3)+1, "TBC", curses.color_pair(4))
 
         typing_win.addstr(0, 0, input_box)
+        stdscr.move(cursor_position[0], cursor_position[1])
+
         typing_win.refresh()
         content_win.refresh()
         stdscr.refresh()
